@@ -1,6 +1,6 @@
 # VoiceRecording
 
-flash air 麦克风语音录制
+flash air 不使用FMS(flash media server)麦克风语音录制并保存录音文件到本地
 
   * flash 桌面应用程序
 
