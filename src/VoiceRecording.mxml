@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx"
+					   creationComplete="windowedapplication1_creationCompleteHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.adobe.audio.format.WAVWriter;
+			
+			import flash.utils.getTimer;
+			
+			import mx.core.UIComponent;
+			import mx.events.FlexEvent;
+			
+			import fr.kikko.lab.ShineMP3Encoder;
+			
+			
+			private var _myFile:FileReference;
+			private var _voice:ByteArray;
+			private var mic:Microphone;
+			protected function windowedapplication1_creationCompleteHandler(event:FlexEvent):void
+			{
+				trace(Microphone.isSupported + "");
+				trace(Microphone.names.length);
+				
+				_myFile = new FileReference();
+				
+				mic =  Microphone.getEnhancedMicrophone();
+				//mic = Microphone.getMicrophone();
+				mic.rate = 44;
+				Security.showSettings("2");
+				
+				mic.setLoopBack(false);
+				
+				if (mic != null) 
+				{
+					mic.setUseEchoSuppression(true);
+					mic.addEventListener(ActivityEvent.ACTIVITY, activityHandler);
+					mic.addEventListener(StatusEvent.STATUS, statusHandler);
+				}
+			}
+			
+			private function startRecoder():void
+			{
+				_voice = new ByteArray();
+				mic.addEventListener(SampleDataEvent.SAMPLE_DATA, sampleDataHandler);
+			}
+			
+			private function sampleDataHandler(e:SampleDataEvent):void
+			{
+				_voice.writeBytes( e.data );
+			}
+			
+			private function activityHandler(event:ActivityEvent):void 
+			{
+				trace("activityHandler: " + event);
+			}
+			
+			private function statusHandler(event:StatusEvent):void
+			{
+				trace("statusHandler: " + event);
+			}
+			
+			private function stopRecoder():void
+			{
+				mic.removeEventListener(SampleDataEvent.SAMPLE_DATA, startRecoder);
+				
+				_voice.position = 0 ;
+				//saveFile();
+				convertToMP3();
+			}
+			
+			protected function saveFile():void 
+			{ 
+				var outputFile:File = File.desktopDirectory.resolvePath("123.wav"); 
+				var outputStream:FileStream = new FileStream(); 
+				var wavWriter:WAVWriter = new WAVWriter(); 
+				_voice.position = 0;  // rewind to the beginning of the sample 
+				
+				wavWriter.numOfChannels = 1; // set the inital properties of the Wave Writer 
+				wavWriter.sampleBitRate = 16; 
+				wavWriter.samplingRate = 44100; 
+				
+				outputStream.open(outputFile, FileMode.WRITE);  //write out our file to disk. 
+				wavWriter.processSamples(outputStream, _voice, 44100, 1); // convert our ByteArray to a WAV file. 
+				outputStream.close();
+			} 
+			
+			
+			private var _mp3Encoder:ShineMP3Encoder;
+			private var _timer: int ;
+			
+			private function convertToMP3(): void
+			{
+				var wavWrite:WAVWriter = new WAVWriter();
+				wavWrite.numOfChannels = 1 ;
+				wavWrite.sampleBitRate = 16 ;
+				wavWrite.samplingRate = 44100 ;
+				
+				var wav:ByteArray = new ByteArray();
+				
+				_timer = getTimer();
+				wavWrite.processSamples(wav, _voice, 44100 , 1 );
+				trace( 'convert to a WAV used: ' + (getTimer() - _timer) + 'ms' );
+				
+				wav.position = 0 ;
+				trace( 'WAV size:' + wav.bytesAvailable + ' bytes' );
+				trace( 'Asynchronous convert to MP3 now' );
+				
+				_timer = getTimer();
+				_mp3Encoder = new ShineMP3Encoder( wav );
+				_mp3Encoder.addEventListener(Event.COMPLETE, onEncoded);
+				_mp3Encoder.addEventListener(ProgressEvent.PROGRESS, onEncoding);
+				_mp3Encoder.addEventListener(ErrorEvent.ERROR, onEncodeError);
+				_mp3Encoder.start();
+			}
+			
+			private function onEncoded(e:Event): void
+			{
+				trace( 'encode MP3 complete used: ' + (getTimer() - _timer) + 'ms' );
+				_mp3Encoder.mp3Data.position = 0 ;
+				trace( 'MP3 size:' + _mp3Encoder.mp3Data.bytesAvailable + ' bytes' );
+				trace( 'press <key>: <s>ave to MP3 or <r>ecord again' );
+				_mp3Encoder.saveAs(new Date().getTime() + ".mp3");
+			}
+			
+			private function onEncoding(e:ProgressEvent): void
+			{
+				trace( 'encoding MP3... ' + Number (e.bytesLoaded / e.bytesTotal * 100 ).toFixed( 2 ) + '%' , true );
+			}
+			
+			private function onEncodeError(e:ErrorEvent): void
+			{
+				trace( 'encode MP3 error ' + e.text);
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:Button click="startRecoder()" label="开始录制"/>
+	<s:Button click="stopRecoder()" label="停止录制" x="200"/>
+</s:WindowedApplication>
